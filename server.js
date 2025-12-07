@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
+import convert from 'heic-convert';
 // Import all the necessary functions from your upload module
 import { upload, getFileUrl, deleteFile, UPLOAD_DIR } from './upload.js'; 
 
@@ -119,7 +120,7 @@ app.post('/upload', listingUpload, (req, res) => {
 });
 
 // --- API Endpoint to Serve Single Image ---
-app.get('/upload/:filename', (req, res) => {
+app.get('/upload/:filename', async (req, res) => {
     const { filename } = req.params;
     const filePath = path.join(UPLOAD_DIR, filename);
     
@@ -131,7 +132,30 @@ app.get('/upload/:filename', (req, res) => {
         });
     }
     
-    // Send the file
+    // Get file extension
+    const ext = path.extname(filename).toLowerCase();
+    
+    // Convert HEIC/HEIF files to JPEG for browser compatibility
+    const heicFormats = ['.heic', '.heif'];
+    if (heicFormats.includes(ext)) {
+        try {
+            const inputBuffer = fs.readFileSync(filePath);
+            const outputBuffer = await convert({
+                buffer: inputBuffer,
+                format: 'JPEG',
+                quality: 0.9
+            });
+            
+            res.set('Content-Type', 'image/jpeg');
+            return res.send(Buffer.from(outputBuffer));
+        } catch (error) {
+            console.error('Error converting HEIC/HEIF:', error);
+            // Fallback to sending the original file
+            return res.sendFile(filePath);
+        }
+    }
+    
+    // Send the file as-is for other formats
     res.sendFile(filePath);
 });
 
